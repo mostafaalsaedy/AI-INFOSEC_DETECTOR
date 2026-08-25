@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push to the same branch cancels the previous run - no point burning
+# minutes on a commit that has already been superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-python
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend-python/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check app tests
+
+      - name: Check formatting
+        run: black --check app tests
+
+      - name: Run tests
+        # The suite uses in-memory SQLite, so no database service is needed.
+        env:
+          ENVIRONMENT: testing
+        run: pytest --cov=app --cov-report=term-missing
+
+  dashboard:
+    name: Dashboard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  laravel:
+    name: Laravel backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_sqlite, bcmath, intl
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: backend/vendor
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+
+      - name: Check formatting
+        run: ./vendor/bin/pint --test
+
+      - name: Run tests
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+        run: php artisan test
+
+  extension:
+    name: Browser extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate manifest
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest.json is valid JSON')"
+
+      - name: Check every referenced file exists
+        run: |
+          node -e "
+          const fs = require('fs');
+          const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+          const referenced = [
+            manifest.background?.service_worker,
+            manifest.action?.default_popup,
+            ...Object.values(manifest.icons ?? {}),
+            ...Object.values(manifest.action?.default_icon ?? {}),
+            ...(manifest.content_scripts ?? []).flatMap(cs => [...(cs.js ?? []), ...(cs.css ?? [])]),
+          ].filter(Boolean);
+
+          const missing = referenced.filter(file => !fs.existsSync(file));
+          if (missing.length) {
+            console.error('Missing files referenced by manifest.json:', missing);
+            process.exit(1);
+          }
+          console.log('All ' + referenced.length + ' referenced files exist');
+          "
+
+      - name: Syntax-check scripts
+        run: |
+          for file in $(find . -name '*.js'); do
+            node --check "$file" || exit 1
+          done
+          echo "All scripts parse"
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail on committed .env files
+        run: |
+          # .env.example is expected; a real .env is not.
+          if git ls-files | grep -E '(^|/)\.env$|(^|/)\.env\.(local|production)$'; then
+            echo "::error::A real .env file is tracked. Remove it and rotate any exposed secrets."
+            exit 1
+          fi
+          echo "No tracked .env files"
+
+      - name: Scan for credential-shaped strings
+        run: |
+          # Deliberately narrow: matches real key formats, not placeholders.
+          pattern='(AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{32,}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'
+          if git grep -InE "$pattern" -- . ':!*.lock' ':!**/package-lock.json'; then
+            echo "::error::Possible credential committed. Rotate it and remove it from history."
+            exit 1
+          fi
+          echo "No credential-shaped strings found"

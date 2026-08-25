@@ -1,0 +1,186 @@
+# Kustomization for InfoSec AI Monitor
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: infosec-ai-monitor
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+# Namespace
+namespace: infosec-ai-monitor
+
+# Resources to deploy
+resources:
+- namespace.yaml
+- configmap.yaml
+# secrets.yaml is deliberately absent: see secrets.example.yaml. Secrets are
+# created out of band so a cluster can never start with placeholder values.
+- postgres.yaml
+- redis.yaml
+- api.yaml
+- celery.yaml
+- ingress.yaml
+- monitoring.yaml
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: infosec-ai-monitor
+  app.kubernetes.io/instance: production
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/managed-by: kustomize
+  environment: production
+
+# Common annotations
+commonAnnotations:
+  deployment.kubernetes.io/revision: "1"
+  meta.helm.sh/release-name: infosec-ai-monitor
+  meta.helm.sh/release-namespace: infosec-ai-monitor
+
+# Image transformations
+images:
+- name: infosecmonitor/api
+  newTag: "1.0.0"
+- name: postgres
+  newTag: "15-alpine"
+- name: redis
+  newTag: "7-alpine"
+
+# Config generators for environment-specific settings
+configMapGenerator:
+- name: environment-config
+  literals:
+  - DEPLOYMENT_ENV=production
+  - CLUSTER_NAME=production-cluster
+  - LOG_FORMAT=json
+  - METRICS_NAMESPACE=infosec-ai-monitor
+
+# Secret generators (use external secret management in production)
+# No secretGenerator here on purpose. Generating secrets from literals commits
+# them to the repository; use External Secrets, Sealed Secrets or Vault instead.
+
+# Resource patches for environment-specific customizations
+patchesStrategicMerge:
+- |-
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: api
+    namespace: infosec-ai-monitor
+  spec:
+    replicas: 3
+    template:
+      spec:
+        containers:
+        - name: api
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1500m"
+
+- |-
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: celery-worker
+    namespace: infosec-ai-monitor
+  spec:
+    replicas: 3
+    template:
+      spec:
+        containers:
+        - name: celery-worker
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+
+# JSON patches for fine-grained modifications
+patchesJson6902:
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: postgres
+    namespace: infosec-ai-monitor
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/memory
+      value: "2Gi"
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/cpu
+      value: "1000m"
+
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: redis
+    namespace: infosec-ai-monitor
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/memory
+      value: "2Gi"
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/cpu
+      value: "500m"
+
+# Replica transformations
+replicas:
+- name: api
+  count: 3
+- name: celery-worker
+  count: 3
+
+# Variables for templating
+vars:
+- name: NAMESPACE
+  objref:
+    kind: Namespace
+    name: infosec-ai-monitor
+    apiVersion: v1
+  fieldref:
+    fieldpath: metadata.name
+- name: API_SERVICE_NAME
+  objref:
+    kind: Service
+    name: api-service
+    apiVersion: v1
+  fieldref:
+    fieldpath: metadata.name
+
+# Generators for additional resources
+generators:
+- |-
+  apiVersion: builtin
+  kind: ConfigMapGenerator
+  metadata:
+    name: build-info
+  literals:
+  - BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+  - GIT_COMMIT=$(git rev-parse HEAD)
+  - BUILD_VERSION=1.0.0
+
+# Transformers for advanced modifications
+transformers:
+- |-
+  apiVersion: builtin
+  kind: NamespaceTransformer
+  metadata:
+    name: namespace-transformer
+  namespace: infosec-ai-monitor
+  setRoleBindingSubjects: true
+  unsetOnly: false
+  fieldSpecs:
+  - path: metadata/namespace
+    create: true
+
+# OpenAPI Schema validation
+openapi:
+  path: https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json

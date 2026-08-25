@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infosec-ai-monitor
+  labels:
+    name: infosec-ai-monitor
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: namespace
+    app.kubernetes.io/part-of: infosec-ai-monitor
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    description: "InfoSec AI Monitor - Advanced AI platform monitoring system"

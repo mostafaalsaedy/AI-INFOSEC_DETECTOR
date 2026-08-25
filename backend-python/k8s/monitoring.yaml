@@ -1,0 +1,461 @@
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: infosec-api-monitor
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: monitoring
+    monitoring.coreos.com/prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: infosec-ai-monitor
+      app.kubernetes.io/component: api
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+  - port: http
+    path: /health
+    interval: 30s
+    scrapeTimeout: 5s
+  namespaceSelector:
+    matchNames:
+    - infosec-ai-monitor
+
+---
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: infosec-celery-monitor
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: monitoring
+    monitoring.coreos.com/prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: infosec-ai-monitor
+      app.kubernetes.io/component: celery-worker
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+    - infosec-ai-monitor
+
+---
+# Grafana Dashboard ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infosec-dashboard
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: monitoring
+    grafana_dashboard: "1"
+data:
+  infosec-ai-monitor.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "InfoSec AI Monitor",
+        "tags": ["infosec", "ai", "monitoring"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "API Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(fastapi_requests_total{job=\"infosec-api\"}[5m])",
+                "legendFormat": "{{method}} {{handler}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Requests/sec",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "API Response Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(fastapi_request_duration_seconds_bucket{job=\"infosec-api\"}[5m]))",
+                "legendFormat": "95th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.50, rate(fastapi_request_duration_seconds_bucket{job=\"infosec-ai\"}[5m]))",
+                "legendFormat": "50th percentile"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Security Alerts Generated",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "increase(security_alerts_total{job=\"infosec-api\"}[24h])",
+                "legendFormat": "Alerts (24h)"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "ML Model Inference Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(ml_inference_duration_seconds_sum{job=\"infosec-api\"}[5m]) / rate(ml_inference_duration_seconds_count{job=\"infosec-api\"}[5m])",
+                "legendFormat": "{{model_name}}"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Celery Task Queue Length",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "celery_queue_length{job=\"celery-exporter\"}",
+                "legendFormat": "{{queue_name}}"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "Database Connection Pool",
+            "type": "graph", 
+            "targets": [
+              {
+                "expr": "pg_stat_database_numbackends{job=\"postgres-exporter\"}",
+                "legendFormat": "Active Connections"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "title": "Redis Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "redis_memory_used_bytes{job=\"redis-exporter\"} / redis_memory_max_bytes{job=\"redis-exporter\"} * 100",
+                "legendFormat": "Memory Usage %"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "title": "Risk Score Distribution",
+            "type": "pie",
+            "targets": [
+              {
+                "expr": "sum by (risk_level) (risk_score_distribution{job=\"infosec-api\"})",
+                "legendFormat": "{{risk_level}}"
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s"
+      }
+    }
+
+---
+# Prometheus Rules for Alerting
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: infosec-alerts
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus
+spec:
+  groups:
+  - name: infosec-api.rules
+    rules:
+    - alert: InfoSecAPIDown
+      expr: up{job="infosec-api"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        service: infosec-api
+      annotations:
+        summary: "InfoSec API is down"
+        description: "InfoSec API has been down for more than 5 minutes."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/api-down"
+    
+    - alert: InfoSecAPIHighErrorRate
+      expr: rate(fastapi_requests_total{job="infosec-api",status=~"5.."}[5m]) / rate(fastapi_requests_total{job="infosec-api"}[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+        service: infosec-api
+      annotations:
+        summary: "InfoSec API high error rate"
+        description: "InfoSec API error rate is above 10% for more than 5 minutes."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/high-error-rate"
+    
+    - alert: InfoSecAPIHighLatency
+      expr: histogram_quantile(0.95, rate(fastapi_request_duration_seconds_bucket{job="infosec-api"}[5m])) > 2
+      for: 10m
+      labels:
+        severity: warning
+        service: infosec-api
+      annotations:
+        summary: "InfoSec API high latency"
+        description: "InfoSec API 95th percentile latency is above 2 seconds for more than 10 minutes."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/high-latency"
+    
+    - alert: InfoSecCriticalSecurityAlert
+      expr: increase(security_alerts_total{job="infosec-api",severity="critical"}[5m]) > 0
+      for: 0m
+      labels:
+        severity: critical
+        service: infosec-security
+      annotations:
+        summary: "Critical security alert generated"
+        description: "A critical security alert has been generated by InfoSec AI Monitor."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/critical-security-alert"
+    
+    - alert: InfoSecMLModelFailure
+      expr: rate(ml_model_errors_total{job="infosec-api"}[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+        service: infosec-ml
+      annotations:
+        summary: "ML model failure rate high"
+        description: "ML model failure rate is above 10% for more than 5 minutes."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/ml-model-failure"
+    
+    - alert: InfoSecCeleryWorkerDown
+      expr: up{job="celery-exporter"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        service: infosec-celery
+      annotations:
+        summary: "Celery workers are down"
+        description: "All Celery workers have been down for more than 5 minutes."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/celery-down"
+    
+    - alert: InfoSecCeleryQueueBacklog
+      expr: celery_queue_length{job="celery-exporter"} > 1000
+      for: 10m
+      labels:
+        severity: warning
+        service: infosec-celery
+      annotations:
+        summary: "Celery queue backlog"
+        description: "Celery queue {{$labels.queue_name}} has more than 1000 pending tasks."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/celery-backlog"
+    
+    - alert: InfoSecDatabaseConnectionsHigh
+      expr: pg_stat_database_numbackends{job="postgres-exporter"} / pg_settings_max_connections{job="postgres-exporter"} > 0.8
+      for: 5m
+      labels:
+        severity: warning
+        service: infosec-database
+      annotations:
+        summary: "Database connection usage high"
+        description: "Database connection usage is above 80% for more than 5 minutes."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/database-connections-high"
+    
+    - alert: InfoSecRedisMemoryHigh
+      expr: redis_memory_used_bytes{job="redis-exporter"} / redis_memory_max_bytes{job="redis-exporter"} > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        service: infosec-redis
+      annotations:
+        summary: "Redis memory usage high"
+        description: "Redis memory usage is above 90% for more than 5 minutes."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/redis-memory-high"
+    
+    - alert: InfoSecPodCrashLooping
+      expr: rate(kube_pod_container_status_restarts_total{namespace="infosec-ai-monitor"}[15m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+        service: infosec-platform
+      annotations:
+        summary: "Pod crash looping"
+        description: "Pod {{$labels.pod}} in namespace {{$labels.namespace}} is crash looping."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/pod-crash-looping"
+    
+    - alert: InfoSecPersistentVolumeUsageHigh
+      expr: kubelet_volume_stats_used_bytes{namespace="infosec-ai-monitor"} / kubelet_volume_stats_capacity_bytes{namespace="infosec-ai-monitor"} > 0.85
+      for: 5m
+      labels:
+        severity: warning
+        service: infosec-platform
+      annotations:
+        summary: "Persistent volume usage high"
+        description: "Persistent volume {{$labels.persistentvolumeclaim}} usage is above 85%."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/pv-usage-high"
+
+  - name: infosec-business.rules
+    rules:
+    - alert: InfoSecDataIngestionStopped
+      expr: rate(data_ingestion_total{job="infosec-api"}[15m]) == 0
+      for: 10m
+      labels:
+        severity: critical
+        service: infosec-data
+      annotations:
+        summary: "Data ingestion has stopped"
+        description: "No data has been ingested for more than 10 minutes."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/data-ingestion-stopped"
+    
+    - alert: InfoSecAnomalousUserBehavior
+      expr: increase(anomalous_behavior_detected_total{job="infosec-api"}[1h]) > 10
+      for: 0m
+      labels:
+        severity: warning
+        service: infosec-security
+      annotations:
+        summary: "Anomalous user behavior detected"
+        description: "More than 10 instances of anomalous user behavior detected in the last hour."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/anomalous-behavior"
+    
+    - alert: InfoSecComplianceViolation
+      expr: increase(compliance_violations_total{job="infosec-api"}[5m]) > 0
+      for: 0m
+      labels:
+        severity: critical
+        service: infosec-compliance
+      annotations:
+        summary: "Compliance violation detected"
+        description: "A compliance violation has been detected."
+        runbook_url: "https://docs.infosecmonitor.ai/runbooks/compliance-violation"
+
+---
+# AlertManager Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_from: 'alerts@infosecmonitor.ai'
+      smtp_auth_username: 'alerts@infosecmonitor.ai'
+      smtp_auth_password: 'app_password_here'
+    
+    route:
+      group_by: ['alertname', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'default'
+      routes:
+      - match:
+          severity: critical
+        receiver: 'critical-alerts'
+        group_wait: 5s
+        group_interval: 5s
+        repeat_interval: 5m
+      - match:
+          service: infosec-security
+        receiver: 'security-team'
+        group_wait: 30s
+      - match:
+          service: infosec-platform
+        receiver: 'platform-team'
+    
+    receivers:
+    - name: 'default'
+      email_configs:
+      - to: 'ops@infosecmonitor.ai'
+        subject: '[InfoSec] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Runbook: {{ .Annotations.runbook_url }}
+          {{ end }}
+    
+    - name: 'critical-alerts'
+      email_configs:
+      - to: 'critical-alerts@infosecmonitor.ai'
+        subject: '[CRITICAL] InfoSec Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          🚨 CRITICAL ALERT 🚨
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Service: {{ .Labels.service }}
+          Runbook: {{ .Annotations.runbook_url }}
+          {{ end }}
+      slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#critical-alerts'
+        title: '🚨 Critical InfoSec Alert'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Service:* {{ .Labels.service }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+    
+    - name: 'security-team'
+      email_configs:
+      - to: 'security-team@infosecmonitor.ai'
+        subject: '[Security] InfoSec Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          🛡️ SECURITY ALERT 🛡️
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Service: {{ .Labels.service }}
+          Runbook: {{ .Annotations.runbook_url }}
+          {{ end }}
+    
+    - name: 'platform-team'
+      email_configs:
+      - to: 'platform-team@infosecmonitor.ai'
+        subject: '[Platform] InfoSec Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          ⚙️ PLATFORM ALERT ⚙️
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Service: {{ .Labels.service }}
+          Runbook: {{ .Annotations.runbook_url }}
+          {{ end }}
+    
+    inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'service']

@@ -1,0 +1,52 @@
+/* InfoSec AI Monitor - Styles */
+
+.security-warning {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.infosec-consent-banner {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+}
+
+.infosec-consent-banner button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+.security-warning strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .security-warning {
+    background: #000 !important;
+    color: #fff !important;
+    border: 2px solid #ff0 !important;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .security-warning {
+    animation: none;
+  }
+  
+  .infosec-consent-banner button:hover {
+    transform: none;
+  }
+}
