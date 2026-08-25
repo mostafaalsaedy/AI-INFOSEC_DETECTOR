@@ -1,0 +1,78 @@
+{
+  "manifest_version": 3,
+  "name": "InfoSec AI Monitor",
+  "version": "1.0.0",
+  "description": "Security monitoring for AI platform usage. Collects metadata and hashes only - never prompt or response content.",
+  "author": "Mostafa Alsaedy",
+  "minimum_chrome_version": "102",
+
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "alarms",
+    "notifications"
+  ],
+
+  "host_permissions": [
+    "*://*.openai.com/*",
+    "*://*.chatgpt.com/*",
+    "*://*.deepseek.com/*",
+    "*://*.claude.ai/*",
+    "*://*.anthropic.com/*",
+    "*://*.perplexity.ai/*",
+    "*://*.cohere.ai/*",
+    "*://*.replicate.com/*",
+    "*://*.huggingface.co/*",
+    "*://*.together.ai/*",
+    "*://*.mistral.ai/*"
+  ],
+
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.openai.com/*",
+        "*://*.chatgpt.com/*",
+        "*://*.deepseek.com/*",
+        "*://*.claude.ai/*",
+        "*://*.anthropic.com/*",
+        "*://*.perplexity.ai/*",
+        "*://*.cohere.ai/*",
+        "*://*.replicate.com/*",
+        "*://*.huggingface.co/*",
+        "*://*.together.ai/*",
+        "*://*.mistral.ai/*"
+      ],
+      "js": ["content-scripts/ai-monitor.js"],
+      "css": ["content-scripts/monitor-styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "InfoSec AI Monitor",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InfoSec AI Monitor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <div class="header-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/>
+        </svg>
+      </div>
+      <h1>InfoSec AI Monitor</h1>
+    </header>
+    
+    <main class="popup-content">
+      <div class="status-section">
+        <div class="status-indicator" id="status-indicator">
+          <div class="status-dot"></div>
+          <span id="status-text">Monitoring Active</span>
+        </div>
+        <div class="status-details" id="status-details">
+          Platform: <span id="current-platform">Detecting...</span>
+        </div>
+      </div>
+      
+      <div class="stats-section">
+        <h3>Session Statistics</h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-number" id="prompts-count">0</span>
+            <span class="stat-label">Prompts</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number" id="alerts-count">0</span>
+            <span class="stat-label">Alerts</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number" id="platforms-count">0</span>
+            <span class="stat-label">Platforms</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="controls-section">
+        <button id="toggle-monitoring" class="control-button primary">
+          <span id="toggle-text">Pause Monitoring</span>
+        </button>
+        <button id="view-dashboard" class="control-button secondary">
+          View Dashboard
+        </button>
+      </div>
+      
+      <div class="consent-section" id="consent-section" style="display: none;">
+        <div class="consent-notice">
+          <h3>Privacy Notice</h3>
+          <p>This extension monitors AI platform usage for security compliance. Data is encrypted and used only for InfoSec purposes.</p>
+          <div class="consent-actions">
+            <button id="consent-accept" class="control-button primary">Accept</button>
+            <a href="#" id="privacy-policy" class="text-link">Privacy Policy</a>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <footer class="popup-footer">
+      <div class="footer-links">
+        <a href="#" id="settings-link" class="text-link">Settings</a>
+        <a href="#" id="help-link" class="text-link">Help</a>
+      </div>
+      <div class="version">v1.0.0</div>
+    </footer>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

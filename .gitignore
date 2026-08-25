@@ -1,0 +1,132 @@
+# ---------------------------------------------------------------------------
+# InfoSec AI Monitor - repository ignore rules
+# ---------------------------------------------------------------------------
+
+# ----- Secrets & local configuration ---------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.local.*
+auth.json
+# Kubernetes secrets are created out of band; only the template is committed.
+/backend-python/k8s/secrets.yaml
+
+# ----- PHP / Laravel --------------------------------------------------------
+/backend/vendor/
+/backend/node_modules/
+/backend/public/build/
+/backend/public/hot
+/backend/public/storage
+/backend/storage/*.key
+/backend/storage/app/private/*
+/backend/storage/app/public/*
+/backend/storage/framework/cache/data/*
+/backend/storage/framework/sessions/*
+/backend/storage/framework/testing/*
+/backend/storage/framework/views/*
+/backend/storage/logs/*
+/backend/bootstrap/cache/*.php
+/backend/database/*.sqlite
+/backend/database/*.sqlite-journal
+/backend/.phpunit.result.cache
+/backend/.phpunit.cache
+/backend/Homestead.json
+/backend/Homestead.yaml
+
+# ----- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# Test / type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.tox/
+.nox/
+
+# Trained models, exports and runtime artefacts
+/backend-python/models/
+/backend-python/exports/
+/backend-python/uploads/
+/backend-python/logs/
+/backend-python/static/
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+*.onnx
+celerybeat-schedule
+celerybeat.pid
+
+# ----- Node / React dashboard ----------------------------------------------
+node_modules/
+/dashboard/build/
+/dashboard/dist/
+/dashboard/coverage/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ----- Browser extension ----------------------------------------------------
+/extension/dist/
+/extension/*.zip
+/extension/*.crx
+/extension/key.pem
+/extension/config/local.js
+web-ext-artifacts/
+
+# ----- Editors & OS ---------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----- Misc -----------------------------------------------------------------
+*.log
+tmp/
+.tmp/
+.cache/

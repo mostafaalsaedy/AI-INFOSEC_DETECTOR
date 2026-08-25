@@ -1,0 +1,704 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "InfoSec AI Monitor - System Overview",
+    "tags": ["infosec", "ai", "monitoring", "overview"],
+    "style": "dark",
+    "timezone": "browser",
+    "editable": true,
+    "hideControls": false,
+    "graphTooltip": 1,
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+    },
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 1,
+    "links": [
+      {
+        "asDropdown": false,
+        "icon": "external link",
+        "includeVars": true,
+        "keepTime": true,
+        "tags": ["infosec"],
+        "targetBlank": true,
+        "title": "InfoSec Dashboards",
+        "tooltip": "Related InfoSec AI Monitor dashboards",
+        "type": "dashboards",
+        "url": ""
+      }
+    ],
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"infosec-api\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "API Service"
+          },
+          {
+            "expr": "up{job=\"postgres-exporter\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "B",
+            "legendFormat": "Database"
+          },
+          {
+            "expr": "up{job=\"redis-exporter\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "C",
+            "legendFormat": "Redis"
+          },
+          {
+            "expr": "up{job=\"celery-exporter\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "D",
+            "legendFormat": "Celery Workers"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "displayMode": "list",
+              "orientation": "horizontal"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "0": {
+                    "color": "red",
+                    "index": 1,
+                    "text": "DOWN"
+                  },
+                  "1": {
+                    "color": "green",
+                    "index": 0,
+                    "text": "UP"
+                  }
+                },
+                "type": "value"
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Security Alerts (24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(security_alerts_total{job=\"infosec-api\"}[24h])",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "Total Alerts"
+          },
+          {
+            "expr": "increase(security_alerts_total{job=\"infosec-api\",severity=\"critical\"}[24h])",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "B",
+            "legendFormat": "Critical Alerts"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 50
+                },
+                {
+                  "color": "red",
+                  "value": 100
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 3,
+        "title": "API Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(fastapi_requests_total{job=\"infosec-api\"}[5m])",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "{{method}} {{handler}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Requests/sec",
+            "min": 0,
+            "show": true
+          },
+          {
+            "show": true
+          }
+        ],
+        "xAxes": [
+          {
+            "mode": "time",
+            "show": true
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 4
+        },
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "fill": 1,
+        "linewidth": 1,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        }
+      },
+      {
+        "id": 4,
+        "title": "API Response Time (95th percentile)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(fastapi_request_duration_seconds_bucket{job=\"infosec-api\"}[5m]))",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(fastapi_request_duration_seconds_bucket{job=\"infosec-api\"}[5m]))",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "B",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Seconds",
+            "min": 0,
+            "show": true
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 4
+        },
+        "legend": {
+          "show": true
+        },
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 5,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(fastapi_requests_total{job=\"infosec-api\",status=~\"4..\"}[5m])",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "4xx Errors"
+          },
+          {
+            "expr": "rate(fastapi_requests_total{job=\"infosec-api\",status=~\"5..\"}[5m])",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "B",
+            "legendFormat": "5xx Errors"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Errors/sec",
+            "min": 0,
+            "show": true
+          }
+        ],
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 0,
+          "y": 12
+        },
+        "legend": {
+          "show": true
+        },
+        "lines": true,
+        "fill": 1,
+        "seriesOverrides": [
+          {
+            "alias": "5xx Errors",
+            "color": "#C4162A"
+          },
+          {
+            "alias": "4xx Errors",
+            "color": "#FF9830"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Active Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends{job=\"postgres-exporter\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "PostgreSQL Connections"
+          },
+          {
+            "expr": "redis_connected_clients{job=\"redis-exporter\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "B",
+            "legendFormat": "Redis Connections"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Connections",
+            "min": 0,
+            "show": true
+          }
+        ],
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 8,
+          "y": 12
+        },
+        "legend": {
+          "show": true
+        },
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 7,
+        "title": "Resource Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{namespace=\"infosec-ai-monitor\"}[5m]) * 100",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "CPU Usage % - {{pod}}"
+          },
+          {
+            "expr": "container_memory_usage_bytes{namespace=\"infosec-ai-monitor\"} / container_spec_memory_limit_bytes{namespace=\"infosec-ai-monitor\"} * 100",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "B",
+            "legendFormat": "Memory Usage % - {{pod}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Percentage",
+            "min": 0,
+            "max": 100,
+            "show": true
+          }
+        ],
+        "gridPos": {
+          "h": 6,
+          "w": 8,
+          "x": 16,
+          "y": 12
+        },
+        "legend": {
+          "show": true
+        },
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 8,
+        "title": "ML Model Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ml_inference_duration_seconds_sum{job=\"infosec-api\"}[5m]) / rate(ml_inference_duration_seconds_count{job=\"infosec-api\"}[5m])",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "{{model_name}} - Inference Time"
+          },
+          {
+            "expr": "ml_model_accuracy{job=\"infosec-api\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "B",
+            "legendFormat": "{{model_name}} - Accuracy"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Seconds / Accuracy",
+            "min": 0,
+            "show": true
+          }
+        ],
+        "gridPos": {
+          "h": 6,
+          "w": 12,
+          "x": 0,
+          "y": 18
+        },
+        "legend": {
+          "show": true
+        },
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 9,
+        "title": "Celery Task Queue",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "celery_queue_length{job=\"celery-exporter\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "{{queue_name}} Queue Length"
+          },
+          {
+            "expr": "rate(celery_tasks_total{job=\"celery-exporter\"}[5m])",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "B",
+            "legendFormat": "{{queue_name}} Processing Rate"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Tasks",
+            "min": 0,
+            "show": true
+          }
+        ],
+        "gridPos": {
+          "h": 6,
+          "w": 12,
+          "x": 12,
+          "y": 18
+        },
+        "legend": {
+          "show": true
+        },
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 10,
+        "title": "Risk Score Distribution",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (risk_level) (risk_score_distribution{job=\"infosec-api\"})",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "{{risk_level}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 24
+        },
+        "options": {
+          "pieType": "pie",
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "displayMode": "visible",
+            "placement": "right",
+            "values": ["value", "percent"]
+          },
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Platform Activity",
+        "type": "barchart",
+        "targets": [
+          {
+            "expr": "sum by (platform) (rate(platform_interactions_total{job=\"infosec-api\"}[5m]))",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "{{platform}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 24
+        },
+        "options": {
+          "orientation": "horizontal",
+          "showValue": "auto",
+          "stacking": "none",
+          "legend": {
+            "displayMode": "visible",
+            "placement": "right"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Storage Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kubelet_volume_stats_used_bytes{namespace=\"infosec-ai-monitor\"} / kubelet_volume_stats_capacity_bytes{namespace=\"infosec-ai-monitor\"} * 100",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "refId": "A",
+            "legendFormat": "{{persistentvolumeclaim}} Usage %"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Percentage",
+            "min": 0,
+            "max": 100,
+            "show": true
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 24
+        },
+        "legend": {
+          "show": true
+        },
+        "lines": true,
+        "fill": 1,
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [85],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": ["A", "5m", "now"]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "Storage Usage High",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "infosec-ai-monitor",
+            "value": "infosec-ai-monitor"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "multi": false,
+          "name": "namespace",
+          "options": [],
+          "query": "label_values(up, namespace)",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "tagValuesQuery": "",
+          "tags": [],
+          "tagsQuery": "",
+          "type": "query",
+          "useTags": false
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "All",
+            "value": "$__all"
+          },
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "pod",
+          "options": [],
+          "query": "label_values(up{namespace=\"$namespace\"}, pod)",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        },
+        {
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "changes(process_start_time_seconds{namespace=\"infosec-ai-monitor\"}[1m]) > 0",
+          "iconColor": "green",
+          "name": "Service Restarts",
+          "titleFormat": "{{pod}} restarted",
+          "textFormat": "Service {{pod}} was restarted"
+        },
+        {
+          "datasource": "prometheus",
+          "enable": true,
+          "expr": "increase(security_alerts_total{severity=\"critical\"}[1m]) > 0",
+          "iconColor": "red",
+          "name": "Critical Security Alerts",
+          "titleFormat": "Critical Security Alert",
+          "textFormat": "Critical security alert generated"
+        }
+      ]
+    }
+  }
+}

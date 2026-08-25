@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a capability or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation you are stuck in, not just the feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Browser extension
+        - Python backend (backend-python)
+        - Laravel backend (backend)
+        - Dashboard
+        - Cross-cutting
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy impact
+      options:
+        - label: This would change what data is collected or retained
+        - label: This would change who can access existing data

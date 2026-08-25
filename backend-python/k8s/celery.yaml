@@ -1,0 +1,475 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery-worker
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: infosec-ai-monitor
+      app.kubernetes.io/component: celery-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: infosec-ai-monitor
+        app.kubernetes.io/component: celery-worker
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: infosec-celery
+      containers:
+      - name: celery-worker
+        image: infosecmonitor/api:1.0.0
+        command:
+        - celery
+        args:
+        - -A
+        - app.services.celery_app
+        - worker
+        - --loglevel=info
+        - --concurrency=4
+        - --queues=default,ml_processing,notifications,privacy,analytics
+        - --max-tasks-per-child=100
+        - --prefetch-multiplier=1
+        envFrom:
+        - configMapRef:
+            name: infosec-config
+        - secretRef:
+            name: infosec-secrets
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        - name: CELERY_WORKER_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: models-storage
+          mountPath: /app/models
+        - name: logs-storage
+          mountPath: /app/logs
+        livenessProbe:
+          exec:
+            command:
+            - celery
+            - -A
+            - app.services.celery_app
+            - inspect
+            - ping
+            - -d
+            - celery@$(CELERY_WORKER_NAME)
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - celery
+            - -A
+            - app.services.celery_app
+            - inspect
+            - active
+            - -d
+            - celery@$(CELERY_WORKER_NAME)
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      - name: celery-exporter
+        image: danihodovic/celery-exporter:latest
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: CELERY_EXPORTER_BROKER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: infosec-config
+              key: CELERY_BROKER_URL
+        - name: CELERY_EXPORTER_LISTEN_ADDRESS
+          value: "0.0.0.0:8080"
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: models-storage
+        persistentVolumeClaim:
+          claimName: ml-models-pvc
+      - name: logs-storage
+        emptyDir: {}
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: infosec-ai-monitor
+                  app.kubernetes.io/component: celery-worker
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery-beat
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: infosec-ai-monitor
+      app.kubernetes.io/component: celery-beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: infosec-ai-monitor
+        app.kubernetes.io/component: celery-beat
+        app.kubernetes.io/version: "1.0.0"
+    spec:
+      serviceAccountName: infosec-celery
+      containers:
+      - name: celery-beat
+        image: infosecmonitor/api:1.0.0
+        command:
+        - celery
+        args:
+        - -A
+        - app.services.celery_app
+        - beat
+        - --loglevel=info
+        - --scheduler=redbeat.RedBeatScheduler
+        - --pidfile=/tmp/celerybeat.pid
+        envFrom:
+        - configMapRef:
+            name: infosec-config
+        - secretRef:
+            name: infosec-secrets
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        volumeMounts:
+        - name: beat-storage
+          mountPath: /tmp
+        - name: logs-storage
+          mountPath: /app/logs
+        livenessProbe:
+          exec:
+            command:
+            - test
+            - -f
+            - /tmp/celerybeat.pid
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - test
+            - -f
+            - /tmp/celerybeat.pid
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: beat-storage
+        emptyDir: {}
+      - name: logs-storage
+        emptyDir: {}
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-flower
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery-flower
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: infosec-ai-monitor
+      app.kubernetes.io/component: celery-flower
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: infosec-ai-monitor
+        app.kubernetes.io/component: celery-flower
+        app.kubernetes.io/version: "1.0.0"
+    spec:
+      serviceAccountName: infosec-celery
+      containers:
+      - name: celery-flower
+        image: infosecmonitor/api:1.0.0
+        command:
+        - celery
+        args:
+        - -A
+        - app.services.celery_app
+        - flower
+        - --port=5555
+        - --address=0.0.0.0
+        - --url_prefix=flower
+        - --basic_auth=admin:secure_flower_password
+        ports:
+        - containerPort: 5555
+          name: flower
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: infosec-config
+        - secretRef:
+            name: infosec-secrets
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        livenessProbe:
+          httpGet:
+            path: /flower/api/workers
+            port: 5555
+            httpHeaders:
+            - name: Authorization
+              value: "Basic YWRtaW46c2VjdXJlX2Zsb3dlcl9wYXNzd29yZA=="
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /flower/api/workers
+            port: 5555
+            httpHeaders:
+            - name: Authorization
+              value: "Basic YWRtaW46c2VjdXJlX2Zsb3dlcl9wYXNzd29yZA=="
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: celery-flower-service
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery-flower
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5555
+    targetPort: 5555
+    protocol: TCP
+    name: flower
+  selector:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery-flower
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: infosec-celery
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery
+automountServiceAccountToken: true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: infosec-celery-role
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: infosec-celery-rolebinding
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: infosec-celery-role
+subjects:
+- kind: ServiceAccount
+  name: infosec-celery
+  namespace: infosec-ai-monitor
+
+---
+# Horizontal Pod Autoscaler for Celery Workers
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: celery-worker-hpa
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery-worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: celery-worker
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Custom metrics for Celery queue length (requires custom metrics API)
+  # - type: External
+  #   external:
+  #     metric:
+  #       name: celery_queue_length
+  #       selector:
+  #         matchLabels:
+  #           queue_name: "default"
+  #     target:
+  #       type: AverageValue
+  #       averageValue: "10"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 3
+        periodSeconds: 60
+
+---
+# Pod Disruption Budget for Celery Workers
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: celery-worker-pdb
+  namespace: infosec-ai-monitor
+  labels:
+    app.kubernetes.io/name: infosec-ai-monitor
+    app.kubernetes.io/component: celery-worker
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: infosec-ai-monitor
+      app.kubernetes.io/component: celery-worker

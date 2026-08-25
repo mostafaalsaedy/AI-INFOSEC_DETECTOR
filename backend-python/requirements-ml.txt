@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# Optional machine-learning stack.
+#
+# Install on top of requirements.txt to enable transformer-based risk
+# classification, isolation-forest anomaly detection, spaCy entity extraction
+# and sentiment scoring. Roughly 3-4 GB of wheels; the API runs fine without it.
+#
+#   pip install -r requirements.txt -r requirements-ml.txt
+#   python -m spacy download en_core_web_sm
+# ---------------------------------------------------------------------------
+
+-r requirements.txt
+
+# --- Classical ML ----------------------------------------------------------
+scikit-learn==1.6.0
+pandas==2.2.3
+scipy==1.14.1
+
+# --- Deep learning ---------------------------------------------------------
+torch==2.5.1
+transformers==4.47.1
+
+# --- NLP -------------------------------------------------------------------
+spacy==3.8.3
+nltk==3.9.1
+textblob==0.18.0.post0

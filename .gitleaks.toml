@@ -1,0 +1,49 @@
+# Gitleaks configuration.
+#
+# Run locally before pushing:
+#   gitleaks git --redact -v .
+#
+# The allowlist below is deliberately narrow: each entry names a specific file
+# and a specific literal. Broad path globs would hide real leaks.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "infosec-placeholder-guard"
+description = "Placeholder secrets must never be committed with real values"
+regex = '''(?i)(CHANGE_ME|your_super_secret|secure_password_123)'''
+tags = ["placeholder"]
+
+[rules.allowlist]
+paths = [
+    # The template exists precisely to carry CHANGE_ME markers.
+    '''backend-python/k8s/secrets\.example\.yaml''',
+]
+
+[allowlist]
+description = "Known-safe test fixtures and documentation examples"
+
+paths = [
+    # Dependency trees are not ours to audit, and `gitleaks dir` would
+    # otherwise drown in third-party source. They are gitignored anyway.
+    '''(^|/)\.venv/''',
+    '''(^|/)node_modules/''',
+    '''(^|/)vendor/''',
+    '''(^|/)build/''',
+    '''(^|/)package-lock\.json$''',
+    '''(^|/)composer\.lock$''',
+]
+
+regexes = [
+    # Test fixtures: deliberately fake credentials used to assert that the
+    # detection rules fire. Changing these would weaken the tests.
+    '''abcdefghijklmnopqrstuvwxyz123456''',
+    '''4111 1111 1111 1111''',
+    '''123-45-6789''',
+    '''hunter2placeholder''',
+    # Documentation placeholders.
+    '''CHANGE_ME[A-Za-z0-9_]*''',
+    '''your_very_secure_secret_for_extension_auth''',
+    '''dev-insecure-[a-z-]+''',
+]

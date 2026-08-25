@@ -1,0 +1,52 @@
+[tool.black]
+line-length = 90
+target-version = ["py311", "py312", "py313"]
+extend-exclude = '''
+/(
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 90
+target-version = "py311"
+extend-exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+    # Long lines are handled by Black; flagging them again is noise.
+    "E501",
+    # Function calls in argument defaults are the FastAPI `Depends()` idiom.
+    "B008",
+    # API handlers deliberately re-raise as HTTPException without chaining, so
+    # internal tracebacks never reach the client.
+    "B904",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests deliberately touch internals and re-import for readability.
+"tests/*" = ["B011", "F811"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ['\.venv', 'build', 'dist']
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/__pycache__/*", "*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
