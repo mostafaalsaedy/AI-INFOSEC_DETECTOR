@@ -45,7 +45,7 @@ langdetect==1.0.9
 # --- HTTP & realtime -------------------------------------------------------
 httpx==0.28.1
 websockets==14.1
-aiofiles==24.1.0
+aiofiles==25.1.0
 
 # --- Observability ---------------------------------------------------------
 prometheus-client==0.21.1
