@@ -201,7 +201,7 @@ jobs:
       - name: gitleaks
         # Scans the full history, not just the working tree - a secret removed
         # in a later commit is still published in the one that added it.
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
